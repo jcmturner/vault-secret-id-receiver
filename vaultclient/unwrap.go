@@ -1,3 +1,0 @@
-package vaultclient
-
-func Unwrap
