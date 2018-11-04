@@ -1,6 +1,6 @@
 ## Running Docker Image
 ```
-docker run --cap-add=IPC_LOCK -e 'VAULT_DEV_ROOT_TOKEN_ID=root_token' -p 8200:8200 -v /vagrant/config:/vault/config -d --name=test-vault vault
+docker run --cap-add=IPC_LOCK -e 'VAULT_DEV_ROOT_TOKEN_ID=root_token' -p 8200:8200 -v /vagrant/config:/vault/config -d --name=vault.service vault
 ```
 
 ## Setup
