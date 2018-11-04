@@ -28,4 +28,4 @@ script:
   - go vet ./...                             # go vet is the official Go static analyzer
   #- golint -set_exit_status $(go list ./...) # golint to be added
   - go test -v -race ./... # Run all the tests with the race detector enabled and integration tests
-  - GOARCH=386 go test -v  ./... # 32bit tests
+  - GOARCH=386 go test -v  ./... # 32bit test
