@@ -47,25 +47,31 @@ func TestClient_SecretIDListener(t *testing.T) {
 		t.Fatalf("could not get wrapped secretID: %v", err)
 	}
 
-	payload := fmt.Sprintf(`{ "secret_id": "%s" }`, secretID)
-	req, err := http.NewRequest(http.MethodPost, "https://127.0.0.1:8201/", strings.NewReader(payload))
-	if err != nil {
-		t.Fatalf("error building request: %v", err)
-	}
+	// Simulate external party posting the secretID
+	go func() {
+		// Wait 5 seconds for the client to start listening for the SecretID
+		time.Sleep(time.Second * 2)
+		payload := fmt.Sprintf(`{ "secret_id": "%s" }`, secretID)
+		req, err := http.NewRequest(http.MethodPost, "https://127.0.0.1:8201/", strings.NewReader(payload))
+		if err != nil {
+			t.Fatalf("error building request: %v", err)
+		}
 
-	client := &http.Client{}
-	cp := x509.NewCertPool()
-	cp.AppendCertsFromPEM(certPEM)
-	tlsConfig := &tls.Config{RootCAs: cp}
-	transport := &http.Transport{TLSClientConfig: tlsConfig}
-	client.Transport = transport
+		client := &http.Client{}
+		cp := x509.NewCertPool()
+		cp.AppendCertsFromPEM(certPEM)
+		tlsConfig := &tls.Config{RootCAs: cp}
+		transport := &http.Transport{TLSClientConfig: tlsConfig}
+		client.Transport = transport
 
-	resp, err := client.Do(req)
-	if err != nil {
-		t.Errorf("could not post secret_id: %v", err)
-	}
-	assert.Equal(t, http.StatusAccepted, resp.StatusCode, "post of secret_id was not successful")
-	time.Sleep(time.Second * 5)
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Errorf("could not post secret_id: %v", err)
+		}
+		assert.Equal(t, http.StatusAccepted, resp.StatusCode, "post of secret_id was not successful")
+	}()
+	// This call blocks until the SecretID has been posted and login has succeeded
+	err = c.WaitForSecretID()
 	putGetSecrets(t, c)
 }
 
@@ -94,30 +100,6 @@ func TestClient_Login(t *testing.T) {
 	t.Log(c.vclient.Token())
 
 	c.Logout()
-	//location := "jt5"
-	//err = c.CreateSecret(location, map[string]string{
-	//	"one": "hello",
-	//	"two": "hello",
-	//})
-	//if err != nil {
-	//	t.Fatalf("failed to create secret: %v", err)
-	//}
-	//s, err := c.ReadSecret(location, 0)
-	//if err != nil {
-	//	t.Fatalf("failed to read secret: %v", err)
-	//}
-	//t.Logf("s: %+v\n", s)
-	//err = c.OverwriteSecret(location, map[string]string{
-	//	"one": "there",
-	//})
-	//if err != nil {
-	//	t.Fatalf("failed to update secret: %v", err)
-	//}
-	//s, err = c.ReadSecret(location, 0)
-	//if err != nil {
-	//	t.Fatalf("failed to read secret: %v", err)
-	//}
-	//t.Logf("s: %+v\n", s)
 }
 
 func putGetSecrets(t *testing.T, c *Client) {

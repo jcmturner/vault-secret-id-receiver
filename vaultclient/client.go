@@ -55,10 +55,29 @@ func New(cfg Config, logger *log.Logger) (*Client, error) {
 		return &c, err
 	}
 	c.vclient, err = vaultAPI.NewClient(conf)
+	if err != nil {
+		return &c, err
+	}
 	c.vclient.SetWrappingLookupFunc(wrappingLookupFunc)
-	// Start listening for secret_id post
-	c.startListener()
 	return &c, err
+}
+
+func (c *Client) WaitForSecretID() error {
+	if c.httpSrv != nil {
+		err := c.httpSrv.Close()
+		if err != nil {
+			return fmt.Errorf("could not close existing listener")
+		}
+	}
+	c.httpSrv = &http.Server{Addr: ":" + strconv.Itoa(c.cfg.ReceivePort), Handler: c.secretIDHandlerFunc()}
+	c.logger.Printf("waiting for secret_id on port %d\n", c.cfg.ReceivePort)
+	err := c.httpSrv.ListenAndServeTLS(c.cfg.ClientCert, c.cfg.ClientKey)
+	if err != nil && err != http.ErrServerClosed {
+		err = fmt.Errorf("error listening for secret_id: %v", err)
+		c.logger.Printf("%v\n", err)
+		return err
+	}
+	return nil
 }
 
 // Login performs and AppRole login to the roleID provided. The secretID may be provided wrapped.
@@ -123,7 +142,7 @@ func (c *Client) Login(secretID string) error {
 	return nil
 }
 
-//
+// Logout stops any further token renewals and clears the token from the client
 func (c *Client) Logout() {
 	if c.renewer != nil {
 		c.renewer.Stop()
@@ -132,20 +151,7 @@ func (c *Client) Logout() {
 	c.logger.Println("logged out")
 }
 
-func (c *Client) startListener() {
-	if c.httpSrv != nil {
-		c.httpSrv.Close()
-	}
-	c.httpSrv = &http.Server{Addr: ":" + strconv.Itoa(c.cfg.ReceivePort), Handler: c.secretIDHandlerFunc()}
-	go func() {
-		c.logger.Printf("listening for secret_id on port %d\n", c.cfg.ReceivePort)
-		err := c.httpSrv.ListenAndServeTLS(c.cfg.ClientCert, c.cfg.ClientKey)
-		if err != nil && err != http.ErrServerClosed {
-			c.logger.Printf("error listening for secret_id: %v\n", err)
-		}
-	}()
-}
-
+// renewal starts a thread to manage the renewal of the client's token
 func (c *Client) renewal(s *vaultAPI.Secret) error {
 	renewer, err := c.vclient.NewRenewer(&vaultAPI.RenewerInput{
 		Secret: s,
@@ -162,7 +168,11 @@ func (c *Client) renewal(s *vaultAPI.Secret) error {
 			case err := <-c.renewer.DoneCh():
 				if err != nil {
 					c.logger.Printf("could not renew vault token: %v\n", err)
-					c.startListener()
+					c.logger.Printf("listening for new secret_id on port %d", c.cfg.ReceivePort)
+					err = c.WaitForSecretID()
+					if err != nil {
+						c.logger.Printf("error waiting for new secret_id: %v", err)
+					}
 				}
 			case renewal := <-c.renewer.RenewCh():
 				c.logger.Printf("vault token renewed at %v, valid until %v\n", renewal.RenewedAt,
@@ -221,14 +231,20 @@ func (c *Client) CreateSecret(location string, data map[string]string) error {
 func (c *Client) OverwriteSecret(location string, data map[string]string) error {
 	path := fmt.Sprintf("secret/data/%s", location)
 	s, err := c.ReadSecret(location, 0)
-	md, err := s.TokenMetadata()
+	// TODO revert when fixed: https://github.com/hashicorp/vault/issues/5680
+	//md, err := s.TokenMetadata()
+	md, err := tokenMetadata(s)
 	if err != nil {
 		return err
 	}
-	vstr := md["version"]
+
+	v, err := strconv.Atoi(md["version"])
+	if err != nil {
+		return err
+	}
 	_, err = c.vclient.Logical().Write(path, map[string]interface{}{
-		"options": map[string]string{
-			"cas": vstr,
+		"options": map[string]int{
+			"cas": v,
 		},
 		"data": data,
 	})
@@ -236,6 +252,46 @@ func (c *Client) OverwriteSecret(location string, data map[string]string) error 
 		return err
 	}
 	return nil
+}
+
+func tokenMetadata(s *vaultAPI.Secret) (map[string]string, error) {
+	if s == nil {
+		return nil, nil
+	}
+
+	if s.Auth != nil && len(s.Auth.Metadata) > 0 {
+		return s.Auth.Metadata, nil
+	}
+
+	if s.Data == nil || (s.Data["metadata"] == nil && s.Data["meta"] == nil) {
+		return nil, nil
+	}
+
+	data, ok := s.Data["metadata"].(map[string]interface{})
+	if !ok {
+		data, ok = s.Data["meta"].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("unable to convert metadata field to expected format")
+		}
+	}
+
+	metadata := make(map[string]string, len(data))
+	for k, v := range data {
+		switch typed := v.(type) {
+		case int:
+			metadata[k] = strconv.Itoa(typed)
+		case json.Number:
+			metadata[k] = typed.String()
+		case bool:
+			metadata[k] = strconv.FormatBool(typed)
+		case string:
+			metadata[k] = typed
+		default:
+			return nil, fmt.Errorf("unable to convert metadata value %v (%T) to string", v, v)
+		}
+	}
+
+	return metadata, nil
 }
 
 // ReadSecret returns the secret at the defined location.
