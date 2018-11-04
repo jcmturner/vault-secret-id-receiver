@@ -14,7 +14,7 @@ before_install:
   - sleep 3
   - curl --header "X-Vault-Token:${VAULT_TOKEN}" --request POST --data '{ "policy":"path \"secret/*\" { capabilities = [\"create\",\"read\",\"update\",\"delete\",\"list\"]}" }' http://127.0.0.1:8200/v1/sys/policy/testpolicy
   - ${TRAVIS_BUILD_DIR}/test/cli/vault auth enable approle
-  - ${TRAVIS_BUILD_DIR}/test/cli/vault  write auth/approle/role/my-role
+  - ${TRAVIS_BUILD_DIR}/test/cli/vault  write auth/approle/role/my-role policies=testpolicy
   - ${TRAVIS_BUILD_DIR}/VAULT_ROLEID=$(test/cli/vault read auth/approle/role/my-role/role-id | grep role_id | awk '{print $2}')
   - export VAULT_ROLEID
 
