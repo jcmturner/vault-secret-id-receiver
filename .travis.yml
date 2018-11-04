@@ -11,11 +11,11 @@ services:
 
 before_install:
   - docker run --cap-add=IPC_LOCK -e 'VAULT_DEV_ROOT_TOKEN_ID=root_token' -p 8200:8200 -d --name=vault.service vault
-  - sleep 5
+  - sleep 3
   - curl --header "X-Vault-Token:${VAULT_TOKEN}" --request POST --data '{ "policy":"path \"secret/*\" { capabilities = [\"create\",\"read\",\"update\",\"delete\",\"list\"]}" }' http://127.0.0.1:8200/v1/sys/policy/testpolicy
-  - test/cli/vault auth enable approle
-  - test/cli/vault  write auth/approle/role/my-role
-  - VAULT_ROLEID=$(test/cli/vault read auth/approle/role/my-role/role-id | grep role_id | awk '{print $2}')
+  - ${TRAVIS_BUILD_DIR}/test/cli/vault auth enable approle
+  - ${TRAVIS_BUILD_DIR}/test/cli/vault  write auth/approle/role/my-role
+  - ${TRAVIS_BUILD_DIR}/VAULT_ROLEID=$(test/cli/vault read auth/approle/role/my-role/role-id | grep role_id | awk '{print $2}')
   - export VAULT_ROLEID
 
 before_script:
