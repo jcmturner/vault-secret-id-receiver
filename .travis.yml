@@ -11,7 +11,8 @@ services:
 
 before_install:
   - docker run --cap-add=IPC_LOCK -e 'VAULT_DEV_ROOT_TOKEN_ID=root_token' -p 8200:8200 -d --name=vault.service vault
-  - curl --header "X-Vault-Token:root_token" --request POST --data '{ "policy":"path \"secret/*\" { capabilities = [\"create\",\"read\",\"update\",\"delete\",\"list\"]}" }' http://127.0.0.1:8200/v1/sys/policy/testpolicy
+  - sleep 5
+  - curl --header "X-Vault-Token:${VAULT_TOKEN}" --request POST --data '{ "policy":"path \"secret/*\" { capabilities = [\"create\",\"read\",\"update\",\"delete\",\"list\"]}" }' http://127.0.0.1:8200/v1/sys/policy/testpolicy
   - test/cli/vault auth enable approle
   - test/cli/vault  write auth/approle/role/my-role
   - VAULT_ROLEID=$(test/cli/vault read auth/approle/role/my-role/role-id | grep role_id | awk '{print $2}')
