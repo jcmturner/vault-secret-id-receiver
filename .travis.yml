@@ -1,0 +1,31 @@
+language: go
+
+go:
+  - 1.11.x
+  - master
+
+sudo: required
+
+services:
+  - docker
+
+before_install:
+  - docker run --cap-add=IPC_LOCK -e 'VAULT_DEV_ROOT_TOKEN_ID=root_token' -p 8200:8200 -d --name=vault.service vault
+  - curl --header "X-Vault-Token:root_token" --request POST --data '{ "policy":"path \"secret/*\" { capabilities = [\"create\",\"read\",\"update\",\"delete\",\"list\"]}" }' http://127.0.0.1:8200/v1/sys/policy/testpolicy
+  - test/cli/vault auth enable approle
+  - test/cli/vault  write auth/approle/role/my-role
+  - VAULT_ROLEID=$(test/cli/vault read auth/approle/role/my-role/role-id | grep role_id | awk '{print $2}')
+  - export VAULT_ROLEID
+
+before_script:
+  - GO_FILES=$(find . -iname '*.go' -type f | grep -v /vendor/)
+
+env:
+  - VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=root_token
+
+script:
+  - test -z $(gofmt -s -d -l -e $GO_FILES | tee /dev/fd/2 | xargs | sed 's/\s//g') # Fail if a .go file hasn't been formatted with gofmt
+  - go vet ./...                             # go vet is the official Go static analyzer
+  #- golint -set_exit_status $(go list ./...) # golint to be added
+  - go test -v -race ./... # Run all the tests with the race detector enabled and integration tests
+  - GOARCH=386 go test -v  ./... # 32bit tests

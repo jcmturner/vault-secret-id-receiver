@@ -122,7 +122,8 @@ func (c *Client) Login(secretID string) error {
 	// set the clientToken
 	c.vclient.SetToken(r.Auth.ClientToken)
 	c.logger.Println("login succeeded")
-	if r.Auth.Renewable {
+	renewable, err := r.TokenIsRenewable()
+	if renewable {
 		c.logger.Println("login token will be automatically renewed")
 		err = c.renewal(r)
 		if err != nil {
@@ -168,15 +169,15 @@ func (c *Client) renewal(s *vaultAPI.Secret) error {
 			case err := <-c.renewer.DoneCh():
 				if err != nil {
 					c.logger.Printf("could not renew vault token: %v\n", err)
-					c.logger.Printf("listening for new secret_id on port %d", c.cfg.ReceivePort)
+					c.logger.Printf("listening for new secret_id on port %d\n", c.cfg.ReceivePort)
 					err = c.WaitForSecretID()
 					if err != nil {
-						c.logger.Printf("error waiting for new secret_id: %v", err)
+						c.logger.Printf("error waiting for new secret_id: %v\n", err)
 					}
 				}
 			case renewal := <-c.renewer.RenewCh():
-				c.logger.Printf("vault token renewed at %v, valid until %v\n", renewal.RenewedAt,
-					renewal.RenewedAt.Add(time.Duration(renewal.Secret.LeaseDuration)*time.Second))
+				ttl, _ := s.TokenTTL()
+				c.logger.Printf("vault token renewed at %v, valid for %v\n", renewal.RenewedAt, ttl)
 			}
 		}
 	}()
@@ -231,9 +232,7 @@ func (c *Client) CreateSecret(location string, data map[string]string) error {
 func (c *Client) OverwriteSecret(location string, data map[string]string) error {
 	path := fmt.Sprintf("secret/data/%s", location)
 	s, err := c.ReadSecret(location, 0)
-	// TODO revert when fixed: https://github.com/hashicorp/vault/issues/5680
-	//md, err := s.TokenMetadata()
-	md, err := tokenMetadata(s)
+	md, err := secretMetadata(s)
 	if err != nil {
 		return err
 	}
@@ -264,7 +263,7 @@ func (c *Client) ReadSecret(location string, version int) (*vaultAPI.Secret, err
 	})
 }
 
-func tokenMetadata(s *vaultAPI.Secret) (map[string]string, error) {
+func secretMetadata(s *vaultAPI.Secret) (map[string]string, error) {
 	if s == nil {
 		return nil, nil
 	}

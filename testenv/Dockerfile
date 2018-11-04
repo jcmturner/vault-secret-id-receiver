@@ -1,4 +1,0 @@
-FROM vault:latest
-
-
-

@@ -1,17 +1,10 @@
 package vaultclient
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"math/big"
-	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -19,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-uuid"
+	"github.com/jcmturner/vault-secret-id-receiver/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -27,13 +21,14 @@ func TestClient_SecretIDListener(t *testing.T) {
 	if vaultAddr == "" {
 		t.Skip("VAULT_ADDR not set, skipping client login test")
 	}
-	cert, key, certPEM, _ := GenerateSelfSignedTLSKeyPairFiles(t)
+	roleID := os.Getenv("VAULT_ROLEID")
+	cert, key, certPEM, _ := test.GenerateSelfSignedTLSKeyPairFiles(t)
 	defer os.Remove(cert)
 	defer os.Remove(key)
 	l := log.New(os.Stderr, "Vault Client: ", log.Ldate|log.Ltime|log.Lshortfile)
 	cfg := Config{
 		Addr:        vaultAddr,
-		RoleID:      "40af949a-f5d4-cb0c-2ea1-a98efc0ac1ce",
+		RoleID:      roleID,
 		ReceivePort: 8201,
 		ClientCert:  cert,
 		ClientKey:   key,
@@ -80,10 +75,11 @@ func TestClient_Login(t *testing.T) {
 	if vaultAddr == "" {
 		t.Skip("VAULT_ADDR not set, skipping client login test")
 	}
+	roleID := os.Getenv("VAULT_ROLEID")
 	l := log.New(os.Stderr, "Vault Client: ", log.Ldate|log.Ltime|log.Lshortfile)
 	cfg := Config{
 		Addr:   vaultAddr,
-		RoleID: "40af949a-f5d4-cb0c-2ea1-a98efc0ac1ce",
+		RoleID: roleID,
 	}
 	c, err := New(cfg, l)
 	if err != nil {
@@ -97,74 +93,66 @@ func TestClient_Login(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not login client: %v", err)
 	}
-	t.Log(c.vclient.Token())
-
 	c.Logout()
+}
+
+func TestClient_CreateReadUpdateSecret(t *testing.T) {
+	vaultAddr := os.Getenv("VAULT_ADDR")
+	if vaultAddr == "" {
+		t.Skip("VAULT_ADDR not set, skipping client login test")
+	}
+	roleID := os.Getenv("VAULT_ROLEID")
+	l := log.New(os.Stderr, "Vault Client: ", log.Ldate|log.Ltime|log.Lshortfile)
+	cfg := Config{
+		Addr:   vaultAddr,
+		RoleID: roleID,
+	}
+	c, err := New(cfg, l)
+	if err != nil {
+		t.Fatalf("could not create client: %v", err)
+	}
+	secretID, err := c.SecretID("my-role", "root_token")
+	if err != nil {
+		t.Fatalf("could not get wrapped secretID: %v", err)
+	}
+	err = c.Login(secretID)
+	if err != nil {
+		t.Fatalf("could not login client: %v", err)
+	}
+
+	putGetSecrets(t, c)
 }
 
 func putGetSecrets(t *testing.T, c *Client) {
 	location, _ := uuid.GenerateUUID()
 	err := c.CreateSecret(location, map[string]string{
-		"one": "hello",
-		"two": "hello",
+		"one": "helloone",
+		"two": "hellotwo",
 	})
 	if err != nil {
 		t.Fatalf("failed to create new secret: %v", err)
 	}
-	_, err = c.ReadSecret(location, 0)
+	s, err := c.ReadSecret(location, 0)
 	if err != nil {
 		t.Fatalf("failed to read secret: %v", err)
 	}
+	one := s.Data["data"].(map[string]interface{})["one"].(string)
+	two := s.Data["data"].(map[string]interface{})["two"].(string)
+	if one != "helloone" || two != "hellotwo" {
+		t.Errorf("secret values incorrect")
+	}
 	err = c.OverwriteSecret(location, map[string]string{
-		"one": "there",
+		"one": "thereone",
 	})
 	if err != nil {
 		t.Fatalf("failed to update secret: %v", err)
 	}
-	_, err = c.ReadSecret(location, 0)
+	s, err = c.ReadSecret(location, 0)
 	if err != nil {
 		t.Fatalf("failed to read updated secret: %v", err)
 	}
-}
-
-func GenerateSelfSignedTLSKeyPairFiles(t *testing.T) (string, string, []byte, *rsa.PrivateKey) {
-	derBytes, priv := GenerateSelfSignedTLSKeyPairData(t)
-	pemCertBytes := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: derBytes,
-	})
-	certOut, _ := ioutil.TempFile(os.TempDir(), "testCert")
-	pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-	certOut.Close()
-	keyOut, _ := ioutil.TempFile(os.TempDir(), "testKey")
-	pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
-	keyOut.Close()
-	return certOut.Name(), keyOut.Name(), pemCertBytes, priv
-}
-
-func GenerateSelfSignedTLSKeyPairData(t *testing.T) ([]byte, *rsa.PrivateKey) {
-	priv, _ := rsa.GenerateKey(rand.Reader, 2048)
-	notBefore := time.Now()
-	notAfter := notBefore.Add(time.Hour * 2 * 365 * 24)
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, _ := rand.Int(rand.Reader, serialNumberLimit)
-	template := x509.Certificate{
-		SerialNumber: serialNumber,
-		Subject: pkix.Name{
-			Organization: []string{"Acme Co"},
-		},
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-		IsCA:                  true,
+	one = s.Data["data"].(map[string]interface{})["one"].(string)
+	if one != "thereone" {
+		t.Fatalf("updated secret not as expected")
 	}
-	template.IPAddresses = append(template.IPAddresses, net.ParseIP("127.0.0.1"))
-	template.DNSNames = append(template.DNSNames, "localhost")
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
-	if err != nil {
-		t.Errorf("Error creating certifcate for testing: %v", err)
-	}
-	return derBytes, priv
 }
