@@ -254,6 +254,16 @@ func (c *Client) OverwriteSecret(location string, data map[string]string) error 
 	return nil
 }
 
+// ReadSecret returns the secret at the defined location.
+// A version of 0 will always return the latest version.
+func (c *Client) ReadSecret(location string, version int) (*vaultAPI.Secret, error) {
+	path := fmt.Sprintf("secret/data/%s", location)
+	vstr := strconv.Itoa(version)
+	return c.vclient.Logical().ReadWithData(path, map[string][]string{
+		"version": {vstr},
+	})
+}
+
 func tokenMetadata(s *vaultAPI.Secret) (map[string]string, error) {
 	if s == nil {
 		return nil, nil
@@ -292,16 +302,6 @@ func tokenMetadata(s *vaultAPI.Secret) (map[string]string, error) {
 	}
 
 	return metadata, nil
-}
-
-// ReadSecret returns the secret at the defined location.
-// A version of 0 will always return the latest version.
-func (c *Client) ReadSecret(location string, version int) (*vaultAPI.Secret, error) {
-	path := fmt.Sprintf("secret/data/%s", location)
-	vstr := strconv.Itoa(version)
-	return c.vclient.Logical().ReadWithData(path, map[string][]string{
-		"version": {vstr},
-	})
 }
 
 func (c *Client) secretIDHandlerFunc() http.HandlerFunc {
