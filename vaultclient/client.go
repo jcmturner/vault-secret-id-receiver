@@ -127,7 +127,7 @@ func (c *Client) Login(secretID string) error {
 	// set the clientToken
 	c.vclient.SetToken(r.Auth.ClientToken)
 	c.logger.Println("login succeeded")
-	renewable, err := r.TokenIsRenewable()
+	renewable, _ := r.TokenIsRenewable()
 	if renewable {
 		c.logger.Println("login token will be automatically renewed")
 		err = c.renewal(r)
@@ -237,6 +237,9 @@ func (c *Client) CreateSecret(location string, data map[string]string) error {
 func (c *Client) OverwriteSecret(location string, data map[string]string) error {
 	path := fmt.Sprintf("secret/data/%s", location)
 	s, err := c.ReadSecret(location, 0)
+	if err != nil {
+		return fmt.Errorf("could not read current version of secret: %v", err)
+	}
 	md, err := secretMetadata(s)
 	if err != nil {
 		return err

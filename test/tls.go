@@ -14,6 +14,7 @@ import (
 	"time"
 )
 
+// GenerateSelfSignedTLSKeyPairFiles generates a self signed certificate and key pair written to files for testing use.
 func GenerateSelfSignedTLSKeyPairFiles(t *testing.T) (string, string, []byte, *rsa.PrivateKey) {
 	derBytes, priv := GenerateSelfSignedTLSKeyPairData(t)
 	pemCertBytes := pem.EncodeToMemory(&pem.Block{
@@ -29,6 +30,7 @@ func GenerateSelfSignedTLSKeyPairFiles(t *testing.T) (string, string, []byte, *r
 	return certOut.Name(), keyOut.Name(), pemCertBytes, priv
 }
 
+// GenerateSelfSignedTLSKeyPairData generates a self signed key pair for testing use.
 func GenerateSelfSignedTLSKeyPairData(t *testing.T) ([]byte, *rsa.PrivateKey) {
 	priv, _ := rsa.GenerateKey(rand.Reader, 2048)
 	notBefore := time.Now()
