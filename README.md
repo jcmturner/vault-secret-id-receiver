@@ -14,6 +14,9 @@ These use the [key/value v2 store](https://www.vaultproject.io/api/secret/kv/kv-
 
 [![GoDoc](https://godoc.org/github.com/jcmturner/vault-secret-id-receiver/vaultclient?status.svg)](https://godoc.org/github.com/jcmturner/vault-secret-id-receiver/vaultclient)
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/jcmturner/vault-secret-id-receiver)](https://goreportcard.com/report/github.com/jcmturner/vault-secret-id-receiver) [![Build Status](https://travis-ci.org/jcmturner/vault-secret-id-receiver?branch=master)](https://travis-ci.org/jcmturner/vault-secret-id-receiver)
+
+
 ### Configuration
 The library has a configuration struct which the application can chose how to populate. For example, by loading from a JSON file.
 ```go
