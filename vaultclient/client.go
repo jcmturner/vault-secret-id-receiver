@@ -357,6 +357,7 @@ func secretIDFromPost(r *http.Request) (string, error) {
 	return s.SecretID, nil
 }
 
+// SecretIDInput is the struct representation of the JSON payload for posting the secret ID.
 type SecretIDInput struct {
 	SecretID string `json:"secret_id"`
 }
