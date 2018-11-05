@@ -12,7 +12,7 @@ The library also manages the ongoing automatic renewal of the client's login tok
 Methods are also available to be able to simply create, overwrite and read secrets in the vault.
 These use the [key/value v2 store](https://www.vaultproject.io/api/secret/kv/kv-v2.html)
 
-[![GoDoc](https://godoc.org/github.com/jcmturner/vault-secret-id-receiver?status.svg)](https://godoc.org/github.com/jcmturner/vault-secret-id-receiver)
+[![GoDoc](https://godoc.org/github.com/jcmturner/vault-secret-id-receiver/vaultclient?status.svg)](https://godoc.org/github.com/jcmturner/vault-secret-id-receiver/vaultclient)
 
 ### Configuration
 The library has a configuration struct which the application can chose how to populate. For example, by loading from a JSON file.
@@ -40,6 +40,8 @@ Below are code snippets for how to use the library
 
 ##### Create the vault client and wait for the secret ID to be posted.
 ```go
+    import "github.com/jcmturner/vault-secret-id-receiver/vaultclient"
+
     l := log.New(os.Stderr, "Vault Client: ", log.Ldate|log.Ltime|log.Lshortfile)
     c, err := New(cfg, l)
     if err != nil {
