@@ -4,17 +4,18 @@ This library is part of an application secrets management solution based on [Has
 It aims to eliminate the problem of having the application store a credential for access to the secrets vault.
 
 The [AppRole](https://www.vaultproject.io/docs/auth/approle.html) authentication method is used to access the vault.
-The application uses this library to wait for a [wrapped](https://www.vaultproject.io/docs/concepts/response-wrapping.html) secret ID to be posted to a ReST interface.
-Once received the application unwraps the secret ID and uses it to login and retrieve a client token and the ReST interface is closed down.
-The library manages the ongoing renewal of the client token automatically.
+An application can use this library to wait for a [wrapped](https://www.vaultproject.io/docs/concepts/response-wrapping.html) secret ID to be posted to a ReST interface.
+Once received the library unwraps the secret ID and uses it to login and retrieve a client token.
+The ReST interface is then closed down. The application can use the logged in client to retrieve secrets from the vault.
+The library also manages the ongoing automatic renewal of the client's login token.
 
 Methods are also available to be able to simply create, overwrite and read secrets in the vault.
 These use the [key/value v2 store](https://www.vaultproject.io/api/secret/kv/kv-v2.html)
 
-[![GoDoc](https://godoc.org/github.com/jcmturner/gokrb5?status.svg)](https://godoc.org/github.com/jcmturner/gokrb5)
+[![GoDoc](https://godoc.org/jcmturner/vault-secret-id-receiver?status.svg)](https://godoc.org/jcmturner/vault-secret-id-receiver)
 
 ### Configuration
-The library has a configuration struct which the application can chose how to populate. For example by loading from a JSON file.
+The library has a configuration struct which the application can chose how to populate. For example, by loading from a JSON file.
 ```go
 type Config struct {
 	VaultURL    string
@@ -28,10 +29,10 @@ type Config struct {
 ```
 * VaultURL - the URL of the vault server (eg https://vault.example.com:8200).
 * MaxRetries - sets the number of retries that will be used in the case of certain errors against the vault.
-* CACertFile - the signing CA certificate of the vault URL that will be trusted. 
+* CACertFile - the CA certificate, to be trusted, which signed the vault URL's certificate. 
 * ClientCert - the certificate that the application will use to communicate with the vault and on the ReST interface that listens for the wrapped secret ID.
 * ClientKey - the private key of the ClientCert.
-* ReceivePort - the TCP port the library will listen on for the ReST interface to which the wrapped secret ID should be posted.
+* ReceivePort - the TCP port the library's ReST interface will listen on to which the wrapped secret ID should be posted.
 * RoleID - the role ID for the [AppRole](https://www.vaultproject.io/docs/auth/approle.html) authentication method.
 
 ### Usage
@@ -69,11 +70,6 @@ Do this at the beginning of the initial start of the application.
 	if err != nil {
 		return fmt.Errorf("failed to read secret: %v", err)
 	}
-	one := s.Data["data"].(map[string]interface{})["one"].(string)
-	two := s.Data["data"].(map[string]interface{})["two"].(string)
-	if one != "helloone" || two != "hellotwo" {
-		t.Errorf("secret values incorrect")
-	}
 	
 	// Overwrite an existing secret
 	err = c.OverwriteSecret(location, map[string]string{
@@ -90,7 +86,8 @@ Values can be accessed like this:
 ```
 
 #### Posting the Secret ID
-The secret ID should be posted in wrapped form by posting the following to the ``ReceivePort``.
+The secret ID should be posted by another process to the ``ReceivePort``.
+The secret ID needs to be wrapped and is posted in a json payload as below: 
 ```json
 {
   "secret_id": "wrapped-secret-id-string"
