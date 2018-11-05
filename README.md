@@ -12,7 +12,7 @@ The library also manages the ongoing automatic renewal of the client's login tok
 Methods are also available to be able to simply create, overwrite and read secrets in the vault.
 These use the [key/value v2 store](https://www.vaultproject.io/api/secret/kv/kv-v2.html)
 
-[![GoDoc](https://godoc.org/jcmturner/vault-secret-id-receiver?status.svg)](https://godoc.org/jcmturner/vault-secret-id-receiver)
+[![GoDoc](https://godoc.org/github.com/jcmturner/vault-secret-id-receiver?status.svg)](https://godoc.org/github.com/jcmturner/vault-secret-id-receiver)
 
 ### Configuration
 The library has a configuration struct which the application can chose how to populate. For example, by loading from a JSON file.
