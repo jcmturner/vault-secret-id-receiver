@@ -15,8 +15,9 @@ import (
 	vaultAPI "github.com/hashicorp/vault/api"
 )
 
+// Config holds the configuration values for vault client.
 type Config struct {
-	Addr        string
+	VaultURL    string
 	MaxRetries  int
 	CACertFile  string
 	ClientCert  string
@@ -25,6 +26,7 @@ type Config struct {
 	RoleID      string
 }
 
+// Client is a higher order Vault client.
 type Client struct {
 	cfg     Config
 	logger  *log.Logger
@@ -33,13 +35,13 @@ type Client struct {
 	httpSrv *http.Server
 }
 
-// New creates a new client instance
+// New creates a new vault client instance.
 func New(cfg Config, logger *log.Logger) (*Client, error) {
 	var c Client
 	c.cfg = cfg
 	c.logger = logger
 	conf := vaultAPI.DefaultConfig()
-	conf.Address = cfg.Addr
+	conf.Address = cfg.VaultURL
 	conf.MaxRetries = cfg.MaxRetries
 	t := &vaultAPI.TLSConfig{
 		CACert:     cfg.CACertFile,
@@ -62,6 +64,7 @@ func New(cfg Config, logger *log.Logger) (*Client, error) {
 	return &c, err
 }
 
+// WaitForSecretID starts the listener for the secret ID and blocks until it has been received.
 func (c *Client) WaitForSecretID() error {
 	if c.httpSrv != nil {
 		err := c.httpSrv.Close()
@@ -80,7 +83,9 @@ func (c *Client) WaitForSecretID() error {
 	return nil
 }
 
-// Login performs and AppRole login to the roleID provided. The secretID may be provided wrapped.
+// Login performs an AppRole login.
+// The secretID must be provided wrapped or unwrapped according to the wrappingLookupFunc.
+// Auto-renewal of the client token is established.
 func (c *Client) Login(secretID string) error {
 	path := fmt.Sprintf("auth/approle/role/%s/secret-id", c.cfg.RoleID)
 	if wrappingLookupFunc("PUT", path) != "" {
@@ -341,7 +346,7 @@ func secretIDFromPost(r *http.Request) (string, error) {
 	reader := io.LimitReader(r.Body, 1024)
 	defer r.Body.Close()
 	dec := json.NewDecoder(reader)
-	s := new(secretIDInput)
+	s := new(SecretIDInput)
 	err := dec.Decode(s)
 	if err != nil {
 		return "", fmt.Errorf("could not parse posted secret_id")
@@ -349,6 +354,6 @@ func secretIDFromPost(r *http.Request) (string, error) {
 	return s.SecretID, nil
 }
 
-type secretIDInput struct {
+type SecretIDInput struct {
 	SecretID string `json:"secret_id"`
 }

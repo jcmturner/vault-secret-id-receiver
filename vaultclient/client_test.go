@@ -27,7 +27,7 @@ func TestClient_SecretIDListener(t *testing.T) {
 	defer os.Remove(key)
 	l := log.New(os.Stderr, "Vault Client: ", log.Ldate|log.Ltime|log.Lshortfile)
 	cfg := Config{
-		Addr:        vaultAddr,
+		VaultURL:    vaultAddr,
 		RoleID:      roleID,
 		ReceivePort: 8201,
 		ClientCert:  cert,
@@ -67,6 +67,9 @@ func TestClient_SecretIDListener(t *testing.T) {
 	}()
 	// This call blocks until the SecretID has been posted and login has succeeded
 	err = c.WaitForSecretID()
+	if err != nil {
+		t.Fatalf("error waiting for secret ID")
+	}
 	putGetSecrets(t, c)
 }
 
@@ -78,8 +81,8 @@ func TestClient_Login(t *testing.T) {
 	roleID := os.Getenv("VAULT_ROLEID")
 	l := log.New(os.Stderr, "Vault Client: ", log.Ldate|log.Ltime|log.Lshortfile)
 	cfg := Config{
-		Addr:   vaultAddr,
-		RoleID: roleID,
+		VaultURL: vaultAddr,
+		RoleID:   roleID,
 	}
 	c, err := New(cfg, l)
 	if err != nil {
@@ -104,8 +107,8 @@ func TestClient_CreateReadUpdateSecret(t *testing.T) {
 	roleID := os.Getenv("VAULT_ROLEID")
 	l := log.New(os.Stderr, "Vault Client: ", log.Ldate|log.Ltime|log.Lshortfile)
 	cfg := Config{
-		Addr:   vaultAddr,
-		RoleID: roleID,
+		VaultURL: vaultAddr,
+		RoleID:   roleID,
 	}
 	c, err := New(cfg, l)
 	if err != nil {
